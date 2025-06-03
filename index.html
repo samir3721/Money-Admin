@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Money BD - Admin Panel</title>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- End Firebase SDK -->
+
+    <!-- CryptoJS for hashing passwords -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #5e72e4;
+            --secondary-color: #2dce89;
+            --danger-color: #f5365c;
+            --background-color: #f4f6f9;
+            --card-background: #ffffff;
+            --text-color: #333;
+            --heading-color: #172b4d;
+            --border-color: #dee2e6;
+            --border-radius: 6px;
+            --box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --font-family: 'Poppins', sans-serif;
+            --sidebar-width: 250px;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+
+        .top-bar {
+            background-color: var(--heading-color);
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .hamburger-menu {
+            display: none; /* Hidden by default, shown on mobile */
+            font-size: 1.8em;
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            margin-right: 15px;
+        }
+
+        .top-bar h1 {
+            font-size: 1.4em;
+            margin: 0;
+        }
+
+
+        .admin-container {
+            display: flex;
+            flex: 1;
+            position: relative; /* For overlay positioning */
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--heading-color);
+            color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease-in-out;
+            height: calc(100vh - 58px); /* Adjust based on top-bar height */
+            overflow-y: auto;
+            position: fixed; /* Changed for mobile */
+            left: 0;
+            top: 58px; /* Below top-bar */
+            z-index: 999;
+        }
+        .sidebar.closed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.5em;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar ul li button {
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            background: none;
+            border: none;
+            color: white;
+            text-align: left;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            transition: background-color 0.3s ease;
+        }
+        .sidebar ul li button:hover, .sidebar ul li button.active {
+            background-color: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px; /* Reduced padding for mobile */
+            overflow-y: auto;
+            margin-left: var(--sidebar-width); /* Default margin for desktop */
+            transition: margin-left 0.3s ease-in-out;
+             width: calc(100% - var(--sidebar-width));
+        }
+        
+        .main-content.sidebar-closed {
+            margin-left: 0;
+             width: 100%;
+        }
+
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 998; /* Below sidebar but above content */
+        }
+        .overlay.active {
+            display: block;
+        }
+
+
+        .admin-screen {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        .admin-screen.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        h3 { color: var(--heading-color); margin-bottom: 20px; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px;}
+        .form-section {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 30px;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group input[type="email"],
+        .form-group input[type="password"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.95em;
+            box-sizing: border-box;
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        .btn {
+            padding: 10px 20px;
+            font-size: 1em;
+            font-weight: 500;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 5px; /* Added margin */
+        }
+        .btn:hover { background-color: #4a5cc0; }
+        .btn-secondary { background-color: var(--secondary-color); }
+        .btn-secondary:hover { background-color: #23a16e; }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-danger:hover { background-color: #d42c4e; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            display: block; /* For horizontal scroll on small screens */
+            overflow-x: auto; /* For horizontal scroll on small screens */
+        }
+        thead, tbody, tr, td, th { display: block; }
+
+        tr:after { /* Clearfix for floated table cells */
+            content: ' ';
+            display: block;
+            visibility: hidden;
+            clear: both;
+        }
+        thead th {
+            height: 40px;
+            text-align: left;
+            background-color: #e9ecef;
+            font-weight: 600;
+             border-bottom-width: 2px;
+        }
+        tbody {
+            max-height: 400px; /* Example height, adjust as needed */
+            overflow-y: auto;
+        }
+        td, th {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            box-sizing: border-box;
+            text-align: left;
+             width: 20%; /* Default width, adjust based on number of columns */
+             float: left; /* Make cells behave like columns */
+        }
+        /* Specific column widths */
+        #users-table td:nth-child(1), #users-table th:nth-child(1) { width: 20%; } /* Name */
+        #users-table td:nth-child(2), #users-table th:nth-child(2) { width: 25%; } /* Email */
+        #users-table td:nth-child(3), #users-table th:nth-child(3) { width: 15%; } /* Mobile */
+        #users-table td:nth-child(4), #users-table th:nth-child(4) { width: 10%; } /* Coins */
+        #users-table td:nth-child(5), #users-table th:nth-child(5) { width: 15%; } /* Reg Date */
+        #users-table td:nth-child(6), #users-table th:nth-child(6) { width: 15%; } /* Action */
+
+        #withdrawals-table td, #withdrawals-table th { width: 12.5%; } /* 8 columns */
+        #withdrawals-table td:nth-child(1), #withdrawals-table th:nth-child(1) { width: 20%; } /* Email */
+        #withdrawals-table td:nth-child(8), #withdrawals-table th:nth-child(8) { width: 20%; } /* Action */
+
+
+        td button { margin-right: 5px; padding: 5px 8px; font-size: 0.85em; margin-bottom: 5px; display: inline-block;}
+
+
+        #admin-login-screen {
+            width: 90%;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: var(--card-background);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            text-align: center;
+        }
+        #admin-login-screen h2 { margin-bottom: 20px; color: var(--heading-color);}
+        #admin-login-screen .form-group { text-align: left; }
+        #admin-login-error { color: var(--danger-color); margin-top: 10px; font-size: 0.9em;}
+
+        .list-item {
+            background: #f9f9f9; padding: 10px; border: 1px solid #eee; border-radius: 4px; margin-bottom:8px;
+        }
+        .list-item button { margin-left: 10px; }
+        .sub-form-group { border: 1px solid #ddd; padding: 10px; margin-bottom:10px; border-radius: 4px;}
+
+        .dashboard-cards {
+            display: flex;
+            gap: 15px; /* Reduced gap */
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .dashboard-card {
+            background-color: var(--card-background);
+            padding: 15px; /* Reduced padding */
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            flex: 1 1 200px; /* Allow wrapping */
+            min-width: 180px; /* Reduced min-width */
+            text-align: center;
+        }
+        .dashboard-card h4 {
+            margin: 0 0 10px 0;
+            color: var(--heading-color);
+            font-size: 1em;
+        }
+        .dashboard-card .value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .logout-button {
+            background-color: var(--danger-color) !important;
+            margin-top: 20px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .hamburger-menu {
+                display: block;
+            }
+            .sidebar {
+                transform: translateX(-100%); /* Hidden by default on mobile */
+                position: fixed;
+                left: 0;
+                top: 0; /* Cover full height */
+                height: 100vh;
+                z-index: 1001; /* Above overlay and top-bar */
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0; /* Full width when sidebar is closed */
+                width: 100%;
+                padding: 15px;
+            }
+            
+            /* Responsive table: stack rows */
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+            thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+            tr { border: 1px solid #ccc; margin-bottom: 10px;}
+            td {
+                border: none;
+                border-bottom: 1px solid #eee;
+                position: relative;
+                padding-left: 50%; /* Space for label */
+                width: 100% !important; /* Full width for stacked cells */
+                float: none;
+                text-align: right; /* Align content to right */
+            }
+            td:before { /* Add labels for cells */
+                position: absolute;
+                top: 6px;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                text-align: left;
+                font-weight: bold;
+            }
+            /* Users Table Labels */
+            #users-table td:nth-of-type(1):before { content: "নাম:"; }
+            #users-table td:nth-of-type(2):before { content: "ইমেইল:"; }
+            #users-table td:nth-of-type(3):before { content: "মোবাইল:"; }
+            #users-table td:nth-of-type(4):before { content: "কয়েন:"; }
+            #users-table td:nth-of-type(5):before { content: "রেজিস্ট্রেশন:"; }
+            #users-table td:nth-of-type(6):before { content: "অ্যাকশন:"; }
+            
+            /* Withdrawals Table Labels */
+            #withdrawals-table td:nth-of-type(1):before { content: "ব্যবহারকারীর ইমেইল:"; }
+            #withdrawals-table td:nth-of-type(2):before { content: "অ্যামাউন্ট:"; }
+            #withdrawals-table td:nth-of-type(3):before { content: "মাধ্যম:"; }
+            #withdrawals-table td:nth-of-type(4):before { content: "নম্বর:"; }
+            #withdrawals-table td:nth-of-type(5):before { content: "নাম:"; }
+            #withdrawals-table td:nth-of-type(6):before { content: "রিকোয়েস্ট তারিখ:"; }
+            #withdrawals-table td:nth-of-type(7):before { content: "স্ট্যাটাস:"; }
+            #withdrawals-table td:nth-of-type(8):before { content: "অ্যাকশন:"; }
+
+            #users-table td:nth-child(6), #withdrawals-table td:nth-child(8) { /* Action column */
+                padding-left: 10px; /* Reset padding for action buttons */
+                text-align: left;
+            }
+             #users-table td:nth-child(6):before, #withdrawals-table td:nth-child(8):before {
+                content: ""; /* Remove label for action column if not needed or set explicitly */
+            }
+
+            .top-bar h1 { font-size: 1.2em; }
+        }
+
+    </style>
+</head>
+<body>
+    <div id="admin-login-screen">
+        <h2>অ্যাডমিন লগইন</h2>
+        <form id="admin-login-form">
+            <div class="form-group">
+                <label for="admin-password">পাসওয়ার্ড:</label>
+                <input type="password" id="admin-password" required>
+            </div>
+            <button type="submit" class="btn">লগইন</button>
+            <p id="admin-login-error" style="display:none;"></p>
+        </form>
+    </div>
+    
+    <div class="top-bar" style="display:none;">
+        <button class="hamburger-menu" id="hamburger-menu-btn">☰</button>
+        <h1>অ্যাডমিন প্যানেল</h1>
+    </div>
+
+    <div class="admin-container" style="display:none;">
+        <div class="overlay" id="overlay"></div>
+        <aside class="sidebar closed" id="sidebar"> <!-- Start closed on mobile -->
+            <!-- <h2>অ্যাডমিন প্যানেল</h2> --> <!-- Title moved to top-bar -->
+            <ul>
+                <li><button data-screen="dashboard-screen">ড্যাশবোর্ড</button></li>
+                <li><button data-screen="app-settings-screen">অ্যাপ সেটিংস</button></li>
+                <li><button data-screen="content-settings-screen">কন্টেন্ট সেটিংস</button></li>
+                <li><button data-screen="password-settings-screen">পাসওয়ার্ড পরিবর্তন</button></li>
+                <li><button data-screen="users-screen">ব্যবহারকারীগণ</button></li>
+                <li><button data-screen="withdrawals-screen">উইথড্রয়াল রিকোয়েস্ট</button></li>
+                <li><button id="admin-logout-button" class="logout-button">লগ আউট</button></li>
+            </ul>
+        </aside>
+
+        <main class="main-content sidebar-closed" id="main-content"> <!-- Start with margin for closed sidebar -->
+            <!-- Dashboard Screen -->
+            <div id="dashboard-screen" class="admin-screen">
+                <h3>ড্যাশবোর্ড</h3>
+                <div class="dashboard-cards">
+                    <div class="dashboard-card">
+                        <h4>মোট ব্যবহারকারী</h4>
+                        <p id="total-users-count" class="value">0</p>
+                    </div>
+                    <div class="dashboard-card">
+                        <h4>পেন্ডিং উইথড্রয়াল</h4>
+                        <p id="pending-withdrawals-count" class="value">0</p>
+                    </div>
+                    <div class="dashboard-card">
+                        <h4>মোট কয়েন উইথড্র (অনুমোদিত)</h4>
+                        <p id="total-withdrawn-coins" class="value">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- App Settings Screen -->
+            <div id="app-settings-screen" class="admin-screen">
+                <h3>অ্যাপ সেটিংস</h3>
+                <form id="app-settings-form">
+                    <div class="form-section">
+                        <h4>দৈনিক লিমিট</h4>
+                        <div class="form-group">
+                            <label for="daily-spin-limit">স্পিন লিমিট:</label>
+                            <input type="number" id="daily-spin-limit" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="daily-scratch-limit">স্ক্র্যাচ লিমিট:</label>
+                            <input type="number" id="daily-scratch-limit" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="daily-quiz-limit">কুইজ লিমিট:</label>
+                            <input type="number" id="daily-quiz-limit" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="daily-math-limit">অংক লিমিট:</label>
+                            <input type="number" id="daily-math-limit" min="0">
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h4>রিওয়ার্ডস</h4>
+                        <div class="form-group">
+                            <label for="quiz-correct-coins">কুইজ সঠিক উত্তর (কয়েন):</label>
+                            <input type="number" id="quiz-correct-coins" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="math-correct-coins">অংক সঠিক উত্তর (কয়েন):</label>
+                            <input type="number" id="math-correct-coins" min="0">
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h4>উইথড্রয়াল সেটিংস</h4>
+                        <div class="form-group">
+                            <label for="min-withdrawal-coins">ন্যূনতম উইথড্রয়াল (কয়েন):</label>
+                            <input type="number" id="min-withdrawal-coins" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="payment-methods">পেমেন্ট মাধ্যম (JSON Array):</label>
+                            <textarea id="payment-methods" placeholder='[{"value": "bKash", "text": "বিকাশ"}, {"value": "Nagad", "text": "নগদ"}]'></textarea>
+                            <small>উদাহরণ: [{"value": "bKash", "text": "বিকাশ"}, {"value": "Nagad", "text": "নগদ"}]</small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">সেটিংস সেভ করুন</button>
+                </form>
+                 <p id="app-settings-status" style="margin-top:10px;"></p>
+            </div>
+
+            <!-- Content Settings Screen -->
+            <div id="content-settings-screen" class="admin-screen">
+                <h3>কন্টেন্ট সেটিংস</h3>
+                <form id="content-settings-form">
+                    <div class="form-section">
+                        <h4>অ্যাপের নিয়মাবলী (HTML)</h4>
+                        <div class="form-group">
+                            <label for="rules-html">নিয়মাবলী:</label>
+                            <textarea id="rules-html"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>কুইজ প্রশ্নাবলী</h4>
+                        <div id="quiz-questions-container">
+                            <!-- Quiz questions will be loaded here -->
+                        </div>
+                        <button type="button" id="add-quiz-question-btn" class="btn btn-secondary">নতুন প্রশ্ন যোগ করুন</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>অংকের সমস্যা</h4>
+                        <div id="math-problems-container">
+                            <!-- Math problems will be loaded here -->
+                        </div>
+                        <button type="button" id="add-math-problem-btn" class="btn btn-secondary">নতুন সমস্যা যোগ করুন</button>
+                    </div>
+                    <button type="submit" class="btn">কন্টেন্ট সেভ করুন</button>
+                </form>
+                <p id="content-settings-status" style="margin-top:10px;"></p>
+            </div>
+
+            <!-- Password Settings Screen -->
+            <div id="password-settings-screen" class="admin-screen">
+                <h3>অ্যাডমিন পাসওয়ার্ড পরিবর্তন</h3>
+                <form id="password-settings-form">
+                    <div class="form-section">
+                        <div class="form-group">
+                            <label for="current-admin-password">বর্তমান পাসওয়ার্ড:</label>
+                            <input type="password" id="current-admin-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="new-admin-password">নতুন পাসওয়ার্ড:</label>
+                            <input type="password" id="new-admin-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirm-new-admin-password">নতুন পাসওয়ার্ড নিশ্চিত করুন:</label>
+                            <input type="password" id="confirm-new-admin-password" required>
+                        </div>
+                        <button type="submit" class="btn">পাসওয়ার্ড পরিবর্তন করুন</button>
+                    </div>
+                </form>
+                <p id="password-settings-status" style="margin-top:10px;"></p>
+            </div>
+
+
+            <!-- Users Screen -->
+            <div id="users-screen" class="admin-screen">
+                <h3>ব্যবহারকারীগণ</h3>
+                <div class="form-group">
+                    <input type="text" id="user-search" placeholder="ইমেইল বা নাম দিয়ে খুঁজুন...">
+                </div>
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>নাম</th>
+                            <th>ইমেইল</th>
+                            <th>মোবাইল</th>
+                            <th>কয়েন</th>
+                            <th>রেজিস্ট্রেশন তারিখ</th>
+                            <th>অ্যাকশন</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- User rows will be loaded here -->
+                    </tbody>
+                </table>
+                 <div id="user-detail-view-container"></div>
+            </div>
+
+            <!-- Withdrawals Screen -->
+            <div id="withdrawals-screen" class="admin-screen">
+                <h3>উইথড্রয়াল রিকোয়েস্ট</h3>
+                 <div class="form-group">
+                    <label for="withdrawal-filter">ফিল্টার:</label>
+                    <select id="withdrawal-filter">
+                        <option value="Pending">পেন্ডিং</option>
+                        <option value="Approved">অনুমোদিত</option>
+                        <option value="Rejected">রিজেক্টেড</option>
+                        <option value="All">সব</option>
+                    </select>
+                </div>
+                <table id="withdrawals-table">
+                    <thead>
+                        <tr>
+                            <th>ব্যবহারকারীর ইমেইল</th>
+                            <th>অ্যামাউন্ট (কয়েন)</th>
+                            <th>মাধ্যম</th>
+                            <th>নম্বর</th>
+                            <th>নাম</th>
+                            <th>রিকোয়েস্ট তারিখ</th>
+                            <th>স্ট্যাটাস</th>
+                            <th>অ্যাকশন</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Withdrawal rows will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCik2IWPuaMKUUpD7raNAqaV3Vv9wLtjo",
+            authDomain: "form-71f8c.firebaseapp.com",
+            databaseURL: "https://form-71f8c-default-rtdb.firebaseio.com",
+            projectId: "form-71f8c",
+            storageBucket: "form-71f8c.firebasestorage.app",
+            messagingSenderId: "68273932952",
+            appId: "1:68273932952:web:d7163ead0d713ce5a61eed"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const ADMIN_PASSWORD_PATH = 'adminPasswordHash';
+        const SESSION_STORAGE_KEY = 'adminLoggedIn';
+
+        const adminLoginScreen = document.getElementById('admin-login-screen');
+        const topBar = document.querySelector('.top-bar');
+        const hamburgerMenuBtn = document.getElementById('hamburger-menu-btn');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const overlay = document.getElementById('overlay');
+
+        const adminContainer = document.querySelector('.admin-container');
+        const adminLoginForm = document.getElementById('admin-login-form');
+        const adminPasswordInput = document.getElementById('admin-password');
+        const adminLoginError = document.getElementById('admin-login-error');
+        const adminLogoutButton = document.getElementById('admin-logout-button');
+
+        const sidebarButtons = document.querySelectorAll('.sidebar ul li button:not(.logout-button)');
+        const adminScreens = document.querySelectorAll('.admin-screen');
+
+        // Settings form elements
+        const appSettingsForm = document.getElementById('app-settings-form');
+        const dailySpinLimitInput = document.getElementById('daily-spin-limit');
+        const dailyScratchLimitInput = document.getElementById('daily-scratch-limit');
+        const dailyQuizLimitInput = document.getElementById('daily-quiz-limit');
+        const dailyMathLimitInput = document.getElementById('daily-math-limit');
+        const quizCorrectCoinsInput = document.getElementById('quiz-correct-coins');
+        const mathCorrectCoinsInput = document.getElementById('math-correct-coins');
+        const minWithdrawalCoinsInput = document.getElementById('min-withdrawal-coins');
+        const paymentMethodsTextarea = document.getElementById('payment-methods');
+        const appSettingsStatus = document.getElementById('app-settings-status');
+
+        // Content settings form elements
+        const contentSettingsForm = document.getElementById('content-settings-form');
+        const rulesHtmlTextarea = document.getElementById('rules-html');
+        const quizQuestionsContainer = document.getElementById('quiz-questions-container');
+        const addQuizQuestionBtn = document.getElementById('add-quiz-question-btn');
+        const mathProblemsContainer = document.getElementById('math-problems-container');
+        const addMathProblemBtn = document.getElementById('add-math-problem-btn');
+        const contentSettingsStatus = document.getElementById('content-settings-status');
+        
+        // Password settings form elements
+        const passwordSettingsForm = document.getElementById('password-settings-form');
+        const currentAdminPasswordInput = document.getElementById('current-admin-password');
+        const newAdminPasswordInput = document.getElementById('new-admin-password');
+        const confirmNewAdminPasswordInput = document.getElementById('confirm-new-admin-password');
+        const passwordSettingsStatus = document.getElementById('password-settings-status');
+
+        // Dashboard elements
+        const totalUsersCountEl = document.getElementById('total-users-count');
+        const pendingWithdrawalsCountEl = document.getElementById('pending-withdrawals-count');
+        const totalWithdrawnCoinsEl = document.getElementById('total-withdrawn-coins');
+
+        // Users
+        const usersTableBody = document.querySelector('#users-table tbody');
+        const userSearchInput = document.getElementById('user-search');
+        const userDetailViewContainer = document.getElementById('user-detail-view-container');
+        let allUsersData = []; 
+
+        // Withdrawals
+        const withdrawalsTableBody = document.querySelector('#withdrawals-table tbody');
+        const withdrawalFilterSelect = document.getElementById('withdrawal-filter');
+        let allWithdrawalsData = [];
+
+        function hashPassword(password) {
+            return CryptoJS.SHA256(password).toString(CryptoJS.enc.Hex);
+        }
+
+        function isAdminLoggedIn() {
+            return sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true';
+        }
+
+        function setAdminLoggedIn(isLoggedIn) {
+            if (isLoggedIn) {
+                sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
+                topBar.style.display = 'flex'; // Show top bar
+            } else {
+                sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                topBar.style.display = 'none'; // Hide top bar
+            }
+        }
+        
+        function toggleSidebar(forceOpen = null) {
+            const isOpen = sidebar.classList.contains('open');
+            if (forceOpen === true || (forceOpen === null && !isOpen)) {
+                sidebar.classList.add('open');
+                sidebar.classList.remove('closed');
+                // mainContent.classList.remove('sidebar-closed'); // Not needed if using fixed sidebar
+                if (window.innerWidth <= 768) { // Only show overlay on mobile
+                    overlay.classList.add('active');
+                }
+            } else if (forceOpen === false || (forceOpen === null && isOpen)) {
+                sidebar.classList.remove('open');
+                sidebar.classList.add('closed');
+                // mainContent.classList.add('sidebar-closed');
+                if (window.innerWidth <= 768) {
+                    overlay.classList.remove('active');
+                }
+            }
+            // Adjust main content margin based on actual sidebar visibility (for desktop)
+            if (window.innerWidth > 768) {
+                 mainContent.style.marginLeft = sidebar.classList.contains('open') ? 'var(--sidebar-width)' : '0';
+            } else {
+                mainContent.style.marginLeft = '0'; // No margin on mobile
+            }
+        }
+
+        hamburgerMenuBtn.addEventListener('click', () => toggleSidebar());
+        overlay.addEventListener('click', () => toggleSidebar(false));
+
+
+        // Initial check on page load
+        if (isAdminLoggedIn()) {
+            adminLoginScreen.style.display = 'none';
+            topBar.style.display = 'flex';
+            adminContainer.style.display = 'flex';
+            loadInitialData();
+            showAdminScreen('dashboard-screen');
+             if (window.innerWidth > 768) {
+                toggleSidebar(true); // Open sidebar by default on desktop
+            } else {
+                toggleSidebar(false); // Keep closed on mobile
+            }
+        } else {
+            adminLoginScreen.style.display = 'block';
+            topBar.style.display = 'none';
+            adminContainer.style.display = 'none';
+        }
+        
+        async function loadInitialData() {
+            await loadAppSettings();
+            await loadContentSettings();
+        }
+
+        adminLoginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            adminLoginError.style.display = 'none';
+            adminLoginError.textContent = '';
+            const enteredPassword = adminPasswordInput.value;
+
+            try {
+                const snapshot = await database.ref(`adminConfig/${ADMIN_PASSWORD_PATH}`).once('value');
+                let storedPasswordHash = null;
+                if (snapshot.exists()) {
+                    storedPasswordHash = snapshot.val();
+                } else {
+                    const defaultPassword = "samir"; 
+                    storedPasswordHash = hashPassword(defaultPassword);
+                    await database.ref(`adminConfig/${ADMIN_PASSWORD_PATH}`).set(storedPasswordHash);
+                    console.log("Default admin password hash set. Please change it immediately.");
+                }
+
+                if (hashPassword(enteredPassword) === storedPasswordHash) {
+                    setAdminLoggedIn(true);
+                    adminLoginScreen.style.display = 'none';
+                    adminContainer.style.display = 'flex';
+                    adminPasswordInput.value = ''; 
+                    await loadInitialData();
+                    showAdminScreen('dashboard-screen');
+                    if (window.innerWidth > 768) {
+                        toggleSidebar(true);
+                    } else {
+                        toggleSidebar(false);
+                    }
+                } else {
+                    adminLoginError.textContent = 'পাসওয়ার্ড সঠিক নয়।';
+                    adminLoginError.style.display = 'block';
+                }
+            } catch (error) {
+                console.error("Admin login error:", error);
+                adminLoginError.textContent = 'লগইন করতে সমস্যা হয়েছে: ' + error.message;
+                adminLoginError.style.display = 'block';
+            }
+        });
+
+        adminLogoutButton.addEventListener('click', () => {
+            setAdminLoggedIn(false);
+            adminLoginScreen.style.display = 'block';
+            adminContainer.style.display = 'none';
+            adminPasswordInput.value = '';
+            adminLoginError.style.display = 'none';
+            toggleSidebar(false); // Ensure sidebar is closed on logout
+        });
+
+        sidebarButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const screenId = button.getAttribute('data-screen');
+                if (screenId) {
+                    showAdminScreen(screenId);
+                    if (window.innerWidth <= 768) { // Close sidebar on mobile after selection
+                        toggleSidebar(false);
+                    }
+                }
+            });
+        });
+        
+        function showAdminScreen(screenId) {
+            if (!isAdminLoggedIn() && screenId !== null) { 
+                 adminLoginScreen.style.display = 'block';
+                 adminContainer.style.display = 'none';
+                 topBar.style.display = 'none';
+                return;
+            }
+            adminScreens.forEach(screen => screen.classList.remove('active'));
+            sidebarButtons.forEach(button => button.classList.remove('active'));
+
+            const activeScreen = document.getElementById(screenId);
+            const activeButton = document.querySelector(`.sidebar button[data-screen="${screenId}"]`);
+            
+            if (activeScreen) activeScreen.classList.add('active');
+            if (activeButton) activeButton.classList.add('active');
+
+            if (screenId === 'dashboard-screen') loadDashboardData();
+            if (screenId === 'users-screen') loadUsersData();
+            if (screenId === 'withdrawals-screen') loadWithdrawalsData();
+        }
+
+        // --- Password Settings Logic (remains the same) ---
+        passwordSettingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            passwordSettingsStatus.textContent = '';
+            passwordSettingsStatus.style.color = 'blue';
+
+            const currentPassword = currentAdminPasswordInput.value;
+            const newPassword = newAdminPasswordInput.value;
+            const confirmNewPassword = confirmNewAdminPasswordInput.value;
+
+            if (newPassword.length < 6) {
+                passwordSettingsStatus.textContent = 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।';
+                passwordSettingsStatus.style.color = 'red';
+                return;
+            }
+            if (newPassword !== confirmNewPassword) {
+                passwordSettingsStatus.textContent = 'নতুন পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না।';
+                passwordSettingsStatus.style.color = 'red';
+                return;
+            }
+
+            try {
+                const snapshot = await database.ref(`adminConfig/${ADMIN_PASSWORD_PATH}`).once('value');
+                if (!snapshot.exists()) {
+                    passwordSettingsStatus.textContent = 'বর্তমান পাসওয়ার্ডের তথ্য পাওয়া যায়নি।';
+                    passwordSettingsStatus.style.color = 'red';
+                    return;
+                }
+                const storedPasswordHash = snapshot.val();
+                if (hashPassword(currentPassword) !== storedPasswordHash) {
+                    passwordSettingsStatus.textContent = 'বর্তমান পাসওয়ার্ড সঠিক নয়।';
+                    passwordSettingsStatus.style.color = 'red';
+                    return;
+                }
+
+                const newPasswordHash = hashPassword(newPassword);
+                await database.ref(`adminConfig/${ADMIN_PASSWORD_PATH}`).set(newPasswordHash);
+                passwordSettingsStatus.textContent = 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!';
+                passwordSettingsStatus.style.color = 'green';
+                currentAdminPasswordInput.value = '';
+                newAdminPasswordInput.value = '';
+                confirmNewAdminPasswordInput.value = '';
+            } catch (error) {
+                console.error("Error changing admin password:", error);
+                passwordSettingsStatus.textContent = 'পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে: ' + error.message;
+                passwordSettingsStatus.style.color = 'red';
+            }
+        });
+
+        // --- App Settings Logic (remains largely the same) ---
+        async function loadAppSettings() {
+            try {
+                const snapshot = await database.ref('adminConfig').once('value');
+                if (snapshot.exists()) {
+                    const config = snapshot.val();
+                    dailySpinLimitInput.value = config.limits?.dailySpinLimit || 70;
+                    dailyScratchLimitInput.value = config.limits?.dailyScratchLimit || 70;
+                    dailyQuizLimitInput.value = config.limits?.dailyQuizLimit || 100;
+                    dailyMathLimitInput.value = config.limits?.dailyMathLimit || 100;
+                    quizCorrectCoinsInput.value = config.rewards?.quizCorrectCoins || 3;
+                    mathCorrectCoinsInput.value = config.rewards?.mathCorrectCoins || 2;
+                    minWithdrawalCoinsInput.value = config.withdrawal?.minCoins || 20000;
+                    paymentMethodsTextarea.value = JSON.stringify(config.withdrawal?.paymentMethods || [{value:"bKash", text:"বিকাশ"}], null, 2);
+                } else {
+                    paymentMethodsTextarea.value = JSON.stringify([{value:"bKash", text:"বিকাশ"}, {value:"Nagad", text:"নগদ"}], null, 2);
+                    appSettingsStatus.textContent = 'কোনো কনফিগারেশন পাওয়া যায়নি। ডিফল্ট মান ব্যবহার করা হচ্ছে।';
+                    appSettingsStatus.style.color = 'orange';
+                }
+            } catch (error) {
+                console.error("Error loading app settings:", error);
+                appSettingsStatus.textContent = 'সেটিংস লোড করতে সমস্যা হয়েছে: ' + error.message;
+                appSettingsStatus.style.color = 'red';
+            }
+        }
+
+        appSettingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            appSettingsStatus.textContent = 'সেভ করা হচ্ছে...';
+            appSettingsStatus.style.color = 'blue';
+
+            let paymentMethods;
+            try {
+                paymentMethods = JSON.parse(paymentMethodsTextarea.value);
+                if (!Array.isArray(paymentMethods)) throw new Error("Payment methods must be an array.");
+                paymentMethods.forEach(pm => {
+                    if (typeof pm.value !== 'string' || typeof pm.text !== 'string') {
+                        throw new Error("Each payment method must have 'value' and 'text' properties as strings.");
+                    }
+                });
+            } catch (error) {
+                appSettingsStatus.textContent = 'পেমেন্ট মাধ্যমের JSON ফরম্যাট সঠিক নয়: ' + error.message;
+                appSettingsStatus.style.color = 'red';
+                return;
+            }
+
+            const newConfig = {
+                limits: {
+                    dailySpinLimit: parseInt(dailySpinLimitInput.value) || 0,
+                    dailyScratchLimit: parseInt(dailyScratchLimitInput.value) || 0,
+                    dailyQuizLimit: parseInt(dailyQuizLimitInput.value) || 0,
+                    dailyMathLimit: parseInt(dailyMathLimitInput.value) || 0,
+                },
+                rewards: {
+                    quizCorrectCoins: parseInt(quizCorrectCoinsInput.value) || 0,
+                    mathCorrectCoins: parseInt(mathCorrectCoinsInput.value) || 0,
+                },
+                withdrawal: {
+                    minCoins: parseInt(minWithdrawalCoinsInput.value) || 0,
+                    paymentMethods: paymentMethods,
+                }
+            };
+
+            try {
+                await database.ref('adminConfig/limits').set(newConfig.limits);
+                await database.ref('adminConfig/rewards').set(newConfig.rewards);
+                await database.ref('adminConfig/withdrawal').set(newConfig.withdrawal);
+                
+                appSettingsStatus.textContent = 'সেটিংস সফলভাবে সেভ হয়েছে!';
+                appSettingsStatus.style.color = 'green';
+            } catch (error) {
+                console.error("Error saving app settings:", error);
+                appSettingsStatus.textContent = 'সেটিংস সেভ করতে সমস্যা হয়েছে: ' + error.message;
+                appSettingsStatus.style.color = 'red';
+            }
+        });
+
+        // --- Content Settings Logic (remains largely the same) ---
+         async function loadContentSettings() {
+            try {
+                const snapshot = await database.ref('adminConfig/content').once('value');
+                if (snapshot.exists()) {
+                    const content = snapshot.val();
+                    rulesHtmlTextarea.value = content.rulesHTML || '';
+                    renderQuizQuestions(content.quizQuestions || []);
+                    renderMathProblems(content.mathProblems || []);
+                } else {
+                    renderQuizQuestions([]);
+                    renderMathProblems([]);
+                    contentSettingsStatus.textContent = 'কোনো কন্টেন্ট পাওয়া যায়নি। ডিফল্ট মান ব্যবহার করুন।';
+                    contentSettingsStatus.style.color = 'orange';
+                }
+            } catch (error) {
+                console.error("Error loading content settings:", error);
+                contentSettingsStatus.textContent = 'কন্টেন্ট লোড করতে সমস্যা হয়েছে: ' + error.message;
+                contentSettingsStatus.style.color = 'red';
+            }
+        }
+
+        function renderQuizQuestions(questions = []) {
+            quizQuestionsContainer.innerHTML = '';
+            (questions || []).forEach((q, index) => {
+                const div = document.createElement('div');
+                div.classList.add('list-item', 'sub-form-group');
+                div.innerHTML = `
+                    <p><strong>প্রশ্ন ${index + 1}:</strong></p>
+                    <input type="text" value="${q.question || ''}" class="quiz-q-text" placeholder="প্রশ্ন">
+                    <input type="text" value="${(q.options || []).join(',')}" class="quiz-q-options" placeholder="অপশন (কমা দিয়ে আলাদা করুন)">
+                    <input type="text" value="${q.correctAnswer || ''}" class="quiz-q-correct" placeholder="সঠিক উত্তর">
+                    <button type="button" class="btn-danger remove-quiz-item-btn" data-index="${index}">মুছুন</button>
+                `;
+                quizQuestionsContainer.appendChild(div);
+            });
+            document.querySelectorAll('.remove-quiz-item-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    e.target.closest('.list-item').remove();
+                };
+            });
+        }
+
+        addQuizQuestionBtn.addEventListener('click', () => {
+            const index = quizQuestionsContainer.children.length;
+            const div = document.createElement('div');
+            div.classList.add('list-item', 'sub-form-group');
+            div.innerHTML = `
+                <p><strong>নতুন প্রশ্ন:</strong></p>
+                <input type="text" class="quiz-q-text" placeholder="প্রশ্ন">
+                <input type="text" class="quiz-q-options" placeholder="অপশন (কমা দিয়ে আলাদা করুন)">
+                <input type="text" class="quiz-q-correct" placeholder="সঠিক উত্তর">
+                <button type="button" class="btn-danger remove-quiz-item-btn" data-index="${index}">মুছুন</button>
+            `;
+            div.querySelector('.remove-quiz-item-btn').onclick = (e) => e.target.closest('.list-item').remove();
+            quizQuestionsContainer.appendChild(div);
+        });
+
+        function renderMathProblems(problems = []) {
+            mathProblemsContainer.innerHTML = '';
+            (problems || []).forEach((p, index) => {
+                const div = document.createElement('div');
+                div.classList.add('list-item', 'sub-form-group');
+                div.innerHTML = `
+                    <p><strong>সমস্যা ${index + 1}:</strong></p>
+                    <input type="text" value="${p.problem || ''}" class="math-p-text" placeholder="সমস্যা (e.g., 5 + 7 = ?)">
+                    <input type="number" value="${p.answer !== undefined ? p.answer : ''}" class="math-p-answer" placeholder="উত্তর">
+                    <button type="button" class="btn-danger remove-math-item-btn" data-index="${index}">মুছুন</button>
+                `;
+                mathProblemsContainer.appendChild(div);
+            });
+             document.querySelectorAll('.remove-math-item-btn').forEach(btn => {
+                btn.onclick = (e) => e.target.closest('.list-item').remove();
+            });
+        }
+
+        addMathProblemBtn.addEventListener('click', () => {
+            const index = mathProblemsContainer.children.length;
+            const div = document.createElement('div');
+            div.classList.add('list-item', 'sub-form-group');
+            div.innerHTML = `
+                <p><strong>নতুন সমস্যা:</strong></p>
+                <input type="text" class="math-p-text" placeholder="সমস্যা (e.g., 5 + 7 = ?)">
+                <input type="number" class="math-p-answer" placeholder="উত্তর">
+                <button type="button" class="btn-danger remove-math-item-btn" data-index="${index}">মুছুন</button>
+            `;
+            div.querySelector('.remove-math-item-btn').onclick = (e) => e.target.closest('.list-item').remove();
+            mathProblemsContainer.appendChild(div);
+        });
+        
+        contentSettingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            contentSettingsStatus.textContent = 'সেভ করা হচ্ছে...';
+            contentSettingsStatus.style.color = 'blue';
+            let validationError = false;
+
+            const newQuizQuestions = [];
+            quizQuestionsContainer.querySelectorAll('.list-item').forEach(item => {
+                if (validationError) return;
+                const question = item.querySelector('.quiz-q-text').value.trim();
+                const optionsString = item.querySelector('.quiz-q-options').value.trim();
+                const correctAnswer = item.querySelector('.quiz-q-correct').value.trim();
+                
+                if (question && optionsString && correctAnswer) {
+                    const options = optionsString.split(',').map(opt => opt.trim()).filter(opt => opt);
+                    if (options.length > 1 && options.includes(correctAnswer)) {
+                         newQuizQuestions.push({ question, options, correctAnswer });
+                    } else {
+                        contentSettingsStatus.textContent = `প্রশ্ন "${question.substring(0,20)}..." এর জন্য অপশন এবং সঠিক উত্তর সঠিকভাবে দিন।`;
+                        contentSettingsStatus.style.color = 'orange';
+                        validationError = true;
+                    }
+                } else if (question || optionsString || correctAnswer) { 
+                    contentSettingsStatus.textContent = `একটি কুইজ প্রশ্নের জন্য সমস্ত ফিল্ড (প্রশ্ন, অপশন, সঠিক উত্তর) পূরণ করুন।`;
+                    contentSettingsStatus.style.color = 'orange';
+                    validationError = true;
+                }
+            });
+            if (validationError) return;
+
+            const newMathProblems = [];
+            mathProblemsContainer.querySelectorAll('.list-item').forEach(item => {
+                if (validationError) return;
+                const problem = item.querySelector('.math-p-text').value.trim();
+                const answerStr = item.querySelector('.math-p-answer').value;
+                if (problem && answerStr !== '') {
+                    const answer = parseInt(answerStr);
+                    if(!isNaN(answer)) {
+                        newMathProblems.push({ problem, answer });
+                    } else {
+                         contentSettingsStatus.textContent = `সমস্যা "${problem.substring(0,20)}..." এর উত্তর একটি সংখ্যা হতে হবে।`;
+                         contentSettingsStatus.style.color = 'orange';
+                         validationError = true;
+                    }
+                } else if (problem || answerStr !== '') {
+                     contentSettingsStatus.textContent = `একটি অংকের সমস্যার জন্য সমস্ত ফিল্ড (সমস্যা, উত্তর) পূরণ করুন।`;
+                     contentSettingsStatus.style.color = 'orange';
+                     validationError = true;
+                }
+            });
+            if (validationError) return;
+            
+            const newContent = {
+                rulesHTML: rulesHtmlTextarea.value.trim(),
+                quizQuestions: newQuizQuestions,
+                mathProblems: newMathProblems
+            };
+
+            try {
+                await database.ref('adminConfig/content').set(newContent);
+                contentSettingsStatus.textContent = 'কন্টেন্ট সফলভাবে সেভ হয়েছে!';
+                contentSettingsStatus.style.color = 'green';
+            } catch (error) {
+                console.error("Error saving content settings:", error);
+                contentSettingsStatus.textContent = 'কন্টেন্ট সেভ করতে সমস্যা হয়েছে: ' + error.message;
+                contentSettingsStatus.style.color = 'red';
+            }
+        });
+
+        // --- Dashboard Logic (remains the same) ---
+        async function loadDashboardData() {
+            try {
+                const usersSnapshot = await database.ref('users').once('value');
+                let totalUsers = 0;
+                let pendingWithdrawals = 0;
+                let totalWithdrawn = 0;
+
+                if (usersSnapshot.exists()) {
+                    const users = usersSnapshot.val();
+                    totalUsers = Object.keys(users).length;
+                    
+                    Object.values(users).forEach(user => {
+                        if (user.withdrawalRequests) {
+                            Object.values(user.withdrawalRequests).forEach(req => {
+                                if (req.status === 'Pending') {
+                                    pendingWithdrawals++;
+                                } else if (req.status === 'Approved') {
+                                    totalWithdrawn += (req.amount || 0);
+                                }
+                            });
+                        }
+                    });
+                }
+                totalUsersCountEl.textContent = totalUsers;
+                pendingWithdrawalsCountEl.textContent = pendingWithdrawals;
+                totalWithdrawnCoinsEl.textContent = totalWithdrawn;
+
+            } catch (error) {
+                console.error("Error loading dashboard data:", error);
+                totalUsersCountEl.textContent = 'ত্রুটি';
+                pendingWithdrawalsCountEl.textContent = 'ত্রুটি';
+                totalWithdrawnCoinsEl.textContent = 'ত্রুটি';
+            }
+        }
+
+        // --- Users Logic (remains largely the same) ---
+        async function loadUsersData() {
+            try {
+                const snapshot = await database.ref('users').once('value');
+                allUsersData = [];
+                if (snapshot.exists()) {
+                    const users = snapshot.val();
+                    for (const uid in users) {
+                        allUsersData.push({ uid, ...users[uid] });
+                    }
+                }
+                renderUsersTable(allUsersData);
+            } catch (error) {
+                console.error("Error loading users:", error);
+                usersTableBody.innerHTML = '<tr><td colspan="6">ব্যবহারকারী লোড করতে সমস্যা হয়েছে।</td></tr>';
+            }
+        }
+        
+        function renderUsersTable(usersToRender) {
+            usersTableBody.innerHTML = '';
+            userDetailViewContainer.innerHTML = ''; 
+            if (usersToRender.length === 0) {
+                usersTableBody.innerHTML = '<tr><td colspan="6">কোনো ব্যবহারকারী পাওয়া যায়নি।</td></tr>';
+                return;
+            }
+            usersToRender.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)); 
+
+            usersToRender.forEach(user => {
+                const tr = document.createElement('tr');
+                const registrationDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString('bn-BD') : 'N/A';
+                tr.innerHTML = `
+                    <td>${user.name || 'N/A'}</td>
+                    <td>${user.email || 'N/A'}</td>
+                    <td>${user.mobile || 'N/A'}</td>
+                    <td>${user.coins || 0}</td>
+                    <td>${registrationDate}</td>
+                    <td>
+                        <button class="btn btn-secondary btn-sm view-user-details-btn" data-uid="${user.uid}">বিস্তারিত</button>
+                        <button class="btn ${user.isBanned ? 'btn-secondary' : 'btn-danger'} btn-sm ban-user-btn" data-uid="${user.uid}">${user.isBanned ? 'আনব্যান' : 'ব্যান'}</button>
+                    </td>
+                `;
+                usersTableBody.appendChild(tr);
+            });
+
+            document.querySelectorAll('.view-user-details-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => viewUserDetails(e.target.dataset.uid));
+            });
+            document.querySelectorAll('.ban-user-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => toggleUserBan(e.target.dataset.uid, e.target));
+            });
+        }
+
+        userSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            if (!searchTerm) {
+                renderUsersTable(allUsersData);
+                return;
+            }
+            const filteredUsers = allUsersData.filter(user => 
+                (user.name && user.name.toLowerCase().includes(searchTerm)) ||
+                (user.email && user.email.toLowerCase().includes(searchTerm))
+            );
+            renderUsersTable(filteredUsers);
+        });
+        
+        async function toggleUserBan(uid, buttonElement) {
+            const userRef = database.ref(`users/${uid}`);
+            try {
+                const snapshot = await userRef.once('value');
+                if (!snapshot.exists()) {
+                    alert('ব্যবহারকারী খুঁজে পাওয়া যায়নি।');
+                    return;
+                }
+                const user = snapshot.val();
+                const currentBanStatus = user.isBanned || false;
+                const newBanStatus = !currentBanStatus;
+
+                if (confirm(`আপনি কি এই ব্যবহারকারীকে (${user.email || uid}) ${newBanStatus ? 'ব্যান' : 'আনব্যান'} করতে চান?`)) {
+                    await userRef.update({ isBanned: newBanStatus });
+                    alert(`ব্যবহারকারী সফলভাবে ${newBanStatus ? 'ব্যান' : 'আনব্যান'} করা হয়েছে।`);
+                    
+                    const userInAllData = allUsersData.find(u => u.uid === uid);
+                    if (userInAllData) userInAllData.isBanned = newBanStatus;
+                    
+                    buttonElement.textContent = newBanStatus ? 'আনব্যান' : 'ব্যান';
+                    buttonElement.classList.toggle('btn-danger', !newBanStatus);
+                    buttonElement.classList.toggle('btn-secondary', newBanStatus);
+                }
+            } catch (error) {
+                alert('ব্যবহারকারীর স্ট্যাটাস পরিবর্তন করতে সমস্যা হয়েছে: ' + error.message);
+            }
+        }
+
+        function viewUserDetails(uid) {
+            const user = allUsersData.find(u => u.uid === uid);
+            if (!user) { alert('ব্যবহারকারীর তথ্য পাওয়া যায়নি।'); return; }
+            
+            let detailsHtml = `<div class="form-section"><h3>ব্যবহারকারীর বিবরণ: ${user.name || user.email}</h3>`;
+            detailsHtml += `<p><strong>UID:</strong> ${user.uid}</p>`;
+            detailsHtml += `<p><strong>ইমেইল:</strong> ${user.email || 'N/A'}</p>`;
+            detailsHtml += `<p><strong>মোবাইল:</strong> ${user.mobile || 'N/A'}</p>`;
+            detailsHtml += `<p><strong>কয়েন:</strong> ${user.coins || 0}</p>`;
+            detailsHtml += `<p><strong>মোট স্পিন:</strong> ${user.totalSpins || 0}</p>`;
+            detailsHtml += `<p><strong>মোট স্ক্র্যাচ:</strong> ${user.totalScratches || 0}</p>`;
+            detailsHtml += `<p><strong>আজকের স্পিন:</strong> ${user.spinsToday || 0}</p>`;
+            detailsHtml += `<p><strong>আজকের স্ক্র্যাচ:</strong> ${user.scratchesToday || 0}</p>`;
+            detailsHtml += `<p><strong>আজকের কুইজ:</strong> ${user.quizzesToday || 0}</p>`;
+            detailsHtml += `<p><strong>আজকের অংক:</strong> ${user.mathsToday || 0}</p>`;
+            detailsHtml += `<p><strong>শেষ রিসেট তারিখ:</strong> ${user.lastResetDate || 'N/A'}</p>`;
+            detailsHtml += `<p><strong>রেজিস্ট্রেশন তারিখ:</strong> ${user.createdAt ? new Date(user.createdAt).toLocaleString('bn-BD') : 'N/A'}</p>`;
+             if(user.profileImageUrl) {
+                detailsHtml += `<p><strong>প্রোফাইল ছবি:</strong> <img src="${user.profileImageUrl}" alt="Profile" style="max-width:100px; max-height:100px; border-radius:50%;"></p>`;
+            }
+            detailsHtml += `<p><strong>ব্যান স্ট্যাটাস:</strong> ${user.isBanned ? 'হ্যাঁ' : 'না'}</p>`;
+
+            detailsHtml += `<h4>উইথড্রয়াল হিস্টোরি:</h4>`;
+            const withdrawalRequests = user.withdrawalRequests ? Object.values(user.withdrawalRequests) : [];
+            if (withdrawalRequests.length > 0) {
+                detailsHtml += '<ul>';
+                withdrawalRequests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).forEach(req => {
+                    detailsHtml += `<li>${new Date(req.timestamp || Date.now()).toLocaleString('bn-BD')}: ${req.amount} কয়েন (${req.method || 'N/A'}) - ${req.number || 'N/A'} - স্ট্যাটাস: ${req.status || 'N/A'}</li>`;
+                });
+                detailsHtml += '</ul>';
+            } else {
+                detailsHtml += '<p>কোনো উইথড্রয়াল হিস্টোরি নেই।</p>';
+            }
+
+            detailsHtml += `<h4>অ্যাক্টিভিটি লগ (সর্বশেষ ৫০):</h4>`;
+            const activityLog = user.activityLog ? Object.values(user.activityLog) : [];
+            if (activityLog.length > 0) {
+                detailsHtml += '<ul style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px;">';
+                activityLog.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 50).forEach(log => {
+                    detailsHtml += `<li>${new Date(log.timestamp || Date.now()).toLocaleString('bn-BD')}: ${log.type || 'N/A'} - ${log.details || 'N/A'} (কয়েন: ${log.coinsChanged === undefined ? 'N/A' : log.coinsChanged})</li>`;
+                });
+                detailsHtml += '</ul></div>';
+            } else {
+                detailsHtml += '<p>কোনো অ্যাক্টিভিটি লগ নেই।</p></div>';
+            }
+            
+            userDetailViewContainer.innerHTML = detailsHtml;
+            userDetailViewContainer.scrollIntoView({behavior: "smooth", block: "nearest"});
+        }
+
+        // --- Withdrawals Logic (remains largely the same) ---
+        async function loadWithdrawalsData() {
+            allWithdrawalsData = [];
+            try {
+                const usersSnapshot = await database.ref('users').once('value');
+                if (usersSnapshot.exists()) {
+                    const users = usersSnapshot.val();
+                    for (const uid in users) {
+                        if (users[uid].withdrawalRequests) {
+                            for (const reqId in users[uid].withdrawalRequests) {
+                                allWithdrawalsData.push({
+                                    userId: uid,
+                                    userEmail: users[uid].email, 
+                                    reqId: reqId,
+                                    ...users[uid].withdrawalRequests[reqId]
+                                });
+                            }
+                        }
+                    }
+                }
+                renderWithdrawalsTable();
+            } catch (error) {
+                console.error("Error loading withdrawals:", error);
+                withdrawalsTableBody.innerHTML = '<tr><td colspan="8">উইথড্রয়াল রিকোয়েস্ট লোড করতে সমস্যা হয়েছে।</td></tr>';
+            }
+        }
+        
+        withdrawalFilterSelect.addEventListener('change', renderWithdrawalsTable);
+
+        function renderWithdrawalsTable() {
+            const filterValue = withdrawalFilterSelect.value;
+            let filteredWithdrawals = allWithdrawalsData;
+
+            if (filterValue !== "All") {
+                filteredWithdrawals = allWithdrawalsData.filter(req => req.status === filterValue);
+            }
+            
+            filteredWithdrawals.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); 
+
+            withdrawalsTableBody.innerHTML = '';
+            if (filteredWithdrawals.length === 0) {
+                withdrawalsTableBody.innerHTML = `<tr><td colspan="8">এই ফিল্টারে কোনো রিকোয়েস্ট নেই।</td></tr>`;
+                return;
+            }
+
+            filteredWithdrawals.forEach(req => {
+                const tr = document.createElement('tr');
+                const requestDate = req.timestamp ? new Date(req.timestamp).toLocaleString('bn-BD') : 'N/A';
+                tr.innerHTML = `
+                    <td>${req.userEmail || 'N/A'}</td>
+                    <td>${req.amount}</td>
+                    <td>${req.method}</td>
+                    <td>${req.number}</td>
+                    <td>${req.name}</td>
+                    <td>${requestDate}</td>
+                    <td>${req.status}</td>
+                    <td>
+                        ${req.status === 'Pending' ? `
+                            <button class="btn btn-secondary btn-sm approve-withdrawal-btn" data-userid="${req.userId}" data-reqid="${req.reqId}" data-amount="${req.amount}">অ্যাপ্রুভ</button>
+                            <button class="btn btn-danger btn-sm reject-withdrawal-btn" data-userid="${req.userId}" data-reqid="${req.reqId}" data-amount="${req.amount}">রিজেক্ট</button>
+                        ` : (req.status === 'Approved' ? 'অনুমোদিত' : 'রিজেক্টেড')}
+                    </td>
+                `;
+                withdrawalsTableBody.appendChild(tr);
+            });
+
+            document.querySelectorAll('.approve-withdrawal-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => updateWithdrawalStatus(e.target.dataset.userid, e.target.dataset.reqid, 'Approved', e.target.dataset.amount));
+            });
+            document.querySelectorAll('.reject-withdrawal-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => updateWithdrawalStatus(e.target.dataset.userid, e.target.dataset.reqid, 'Rejected', e.target.dataset.amount));
+            });
+        }
+
+        async function updateWithdrawalStatus(userId, reqId, newStatus, amountStr) {
+            const amount = parseInt(amountStr);
+            if (isNaN(amount)) {
+                alert("উইথড্রয়ালের পরিমাণ সঠিক নয়।");
+                return;
+            }
+            if (confirm(`আপনি কি এই রিকোয়েস্টটি "${newStatus === 'Approved' ? 'অ্যাপ্রুভ' : 'রিজেক্ট'}" করতে চান?`)) {
+                try {
+                    const withdrawalUpdatePath = `users/${userId}/withdrawalRequests/${reqId}`;
+                    const userCoinsPath = `users/${userId}/coins`;
+                    const userActivityLogPath = `users/${userId}/activityLog`;
+
+                    await database.ref(withdrawalUpdatePath).update({ 
+                        status: newStatus, 
+                        adminActionTimestamp: firebase.database.ServerValue.TIMESTAMP 
+                    });
+                    
+                    const activityLogRef = database.ref(userActivityLogPath).push();
+
+                    if (newStatus === 'Rejected') { 
+                        await database.ref(userCoinsPath).set(firebase.database.ServerValue.increment(amount));
+                        const activityDetails = `Withdrawal ID ${reqId.slice(-6)} rejected. ${amount} coins refunded.`;
+                        await activityLogRef.set({
+                            timestamp: firebase.database.ServerValue.TIMESTAMP, type: 'withdrawal_refund', details: activityDetails, coinsChanged: amount
+                        });
+                        alert(`রিকোয়েস্ট সফলভাবে "রিজেক্টেড" করা হয়েছে এবং ${amount} কয়েন রিফান্ড করা হয়েছে।`);
+                    } else if (newStatus === 'Approved') {
+                        const activityDetails = `Withdrawal ID ${reqId.slice(-6)} approved for ${amount} coins.`;
+                         await activityLogRef.set({
+                            timestamp: firebase.database.ServerValue.TIMESTAMP, type: 'withdrawal_approved', details: activityDetails, coinsChanged: 0 
+                        });
+                        alert(`রিকোয়েস্ট সফলভাবে "অনুমোদিত" করা হয়েছে।`);
+                    }
+
+                    loadWithdrawalsData(); 
+                    loadDashboardData(); 
+                } catch (error) {
+                    console.error("Error updating withdrawal status:", error);
+                    alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে: ' + error.message);
+                }
+            }
+        }
+        
+        // Adjust sidebar and main content based on window size initially and on resize
+        function adjustLayout() {
+            if (window.innerWidth > 768) {
+                if (isAdminLoggedIn()) { // Only open if logged in on desktop
+                    sidebar.classList.add('open');
+                    sidebar.classList.remove('closed');
+                    mainContent.style.marginLeft = 'var(--sidebar-width)';
+                }
+                 overlay.classList.remove('active'); // No overlay on desktop
+            } else {
+                // On mobile, sidebar starts closed unless explicitly opened
+                if (!sidebar.classList.contains('open')) { // If it's not already open (e.g. by hamburger)
+                    sidebar.classList.add('closed');
+                    sidebar.classList.remove('open');
+                }
+                mainContent.style.marginLeft = '0';
+            }
+        }
+        window.addEventListener('resize', adjustLayout);
+        // adjustLayout(); // Call on initial load - This is now handled by the isAdminLoggedIn check
+
+    </script>
+</body>
+</html>
